@@ -40,12 +40,13 @@ class Stratergist():
         }
         stoploss_percentage = 1
         target_percentage = 1
+        number_of_candles = 2
         if usecase == 'init':
-            return parameters , stoploss_percentage , target_percentage
+            return parameters , stoploss_percentage , target_percentage, number_of_candles
         
         if usecase == 'enter':
             # 0 is nothing 1 to buy -1 to sell 
-            adx = data['adx']
+            adx = data[0]['adx']
             if adx is None:
                 return 0
             if adx >= 10000:

@@ -9,3 +9,9 @@ __pycache__/
 
 # Ignore config file
 breeze_config.py
+
+logs/
+
+*.ipynb
+
+*.csv

@@ -5,7 +5,7 @@ class Calculator():
     def __init__(self):
         pass
 
-    def calculate(self,indicator,data,indicator_data):
+    def calculate(self,indicator,data,indicator_data,logger):
         indicator = str.lower(indicator)
         method = getattr(self, f"calculate_{indicator}", None)
         if not method:
@@ -13,7 +13,8 @@ class Calculator():
         
         try:
             result = method(data,indicator_data)
-        except TypeError:
+        except TypeError as e:
+            logger.info(f"The error - {e} occured")
             result = None
         len = data.shape[0]
         if result is not None:

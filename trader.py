@@ -16,7 +16,7 @@ class Trader():
         self.calculator = Calculator()
         self.stratergist = Stratergist(stratergy)
         self.stratergy = stratergy
-        self.indicators , self.stoploss_percent , self.target_percent = self.stratergist.initialize()
+        self.indicators , self.stoploss_percent , self.target_percent , self.number_of_candles= self.stratergist.initialize()
         self.trade_active = False
         self.latest_price = None
         self.position_info = None
@@ -36,18 +36,22 @@ class Trader():
         self.logger.info(f"The breeze object inside has come - {self.breeze}")
     
     def add_data(self,ohlc):
+        self.logger.info(f"The ohlc recieved - {ohlc}")
         ohlc = {k:v for k,v in ohlc.items() if k in ['open','high','low','close','volume','datetime']}
+        self.logger.info(f"The updated ohlc values keeping the important - {ohlc}")
         if self.data is None:
             temp_data = pd.DataFrame([ohlc])
         else:
             new = pd.DataFrame([ohlc])
-            # old = self.data[['open','high','low','close','volume']]
+            self.logger.info(f"the new low of ohlc data - {new.iloc[-1]}")
             old = self.data
             temp_data = pd.concat([old,new])
+            self.logger.info(f"after combining old + new shape of temp_df - {temp_data.shape}")
         for required_indicator , indicator_information in self.indicators.items():
             indicator_type = list(indicator_information.keys())[0]
-            temp_indicator = self.calculator.calculate(indicator_type,temp_data,indicator_information[indicator_type])
+            temp_indicator = self.calculator.calculate(indicator_type,temp_data[['open','close','high','low','volume']].astype(float),indicator_information[indicator_type],self.logger)
             temp_data[required_indicator] = temp_indicator
+            self.logger.info(f"for {required_indicator} we got {temp_indicator}")
 
         if temp_data.shape[1] != 6+ len(self.indicators):
             raise ValueError("The indicators were not caluclated properly")
@@ -172,10 +176,18 @@ class Trader():
 
 
         if data_purpose == 'Enter' and not self.trade_active:
-            res = self.next(ohlc_indicators,data_purpose)
+            if self.data.shape[0] >= self.number_of_candles:
+                data_to_send = []
+                for i in range(self.number_of_candles):
+                    data_to_send.append(self.data.iloc[-(i+1)])
+                print(data_to_send)
+                res = self.next(data_to_send,data_purpose)
+            else:
+                res = 0
             if res == 1 or res == -1:
-                entry_data = self.enter(res)
                 self.trade_active = True
+                entry_data = self.enter(res)
+                # self.trade_active = True
                 self.position_info = entry_data
                 print(entry_data)
             
