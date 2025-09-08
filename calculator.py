@@ -1,4 +1,6 @@
 import pandas_ta as ta 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="pandas_ta")
 
 class Calculator():
 
@@ -14,7 +16,7 @@ class Calculator():
         try:
             result = method(data,indicator_data)
         except TypeError as e:
-            logger.info(f"The error - {e} occured")
+            # logger.info(f"The error - {e} occured")
             result = None
         len = data.shape[0]
         if result is not None:

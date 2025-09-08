@@ -6,9 +6,9 @@ def get_logger(name):
     logger.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(f"logs\\{name}.txt")
+    file_handler = logging.FileHandler(f"logs\\{name}.txt", encoding="utf-8")
 
-    console_handler.setLevel(logging.ERROR)
+    console_handler.setLevel(logging.DEBUG)
     file_handler.setLevel(logging.DEBUG)
 
     # Create a log format

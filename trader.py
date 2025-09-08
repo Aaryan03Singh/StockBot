@@ -1,112 +1,107 @@
 from calculator import Calculator
 from stratergist import Stratergist
 import pandas as pd
+import math
+import logger
 
 class Trader():
 
-    def __init__(self,stock,time_frame,stratergy,amount,logger):
+    def __init__(self,stock,time_frame,stratergy,amount):
 
-        # if time_frame not in ['1min','5min']:
-        #     raise ValueError('Time frame not valid, should be from the following values - ["1min","5min"]')
-        
-        #check is the stock code given is valid and store the value 
+        self.logger = logger.get_logger(f"{stock}_{time_frame}_{stratergy}")  #add the name here 
         self.stock = stock
         self.time_frame = time_frame
         self.data = None
         self.calculator = Calculator()
-        self.stratergist = Stratergist(stratergy)
+        self.stratergist = Stratergist()
         self.stratergy = stratergy
-        self.indicators , self.stoploss_percent , self.target_percent , self.number_of_candles= self.stratergist.initialize()
+        self.indicators , self.stoploss_percent , self.target_percent , self.number_of_candles= self.stratergist.initialize(stratergy,self.logger)
         self.trade_active = False
         self.latest_price = None
         self.position_info = None
         self.amount = amount
         self.breeze = None
-        self.logger = logger
-        self.logger.info(f"The Trader has been setup with the following information -\nStock - {self.stock}\nTime Frame-{self.time_frame}\nStratergy - {self.stratergy}\nIndicators -{self.indicators}\nStopLoss Percent - {self.stoploss_percent}\nTarget Percent - {self.target_percent}\nAmount-{self.amount}")
-        
-
-    def __str__(self):
-        stock_info = f"Stock being tracked is {self.stock}\n"
-        time_frame_info = f"Timeframe being used is {self.time_frame}\n"
-        return stock_info + time_frame_info
+        self.number_of_trades = 0
+        self.logger.info(f"Trader has started 🟢🚀")
     
     def initialize_breeze_object(self,breeze):
         self.breeze = breeze
-        self.logger.info(f"The breeze object inside has come - {self.breeze}")
+        if breeze:
+            self.logger.info(f"Currently in Prodcution mode with Breeze API connected 🔗")
+        else:
+            self.logger.info(f"Currently in Simulation mode 🛠️")
     
     def add_data(self,ohlc):
-        self.logger.info(f"The ohlc recieved - {ohlc}")
         ohlc = {k:v for k,v in ohlc.items() if k in ['open','high','low','close','volume','datetime']}
-        self.logger.info(f"The updated ohlc values keeping the important - {ohlc}")
         if self.data is None:
             temp_data = pd.DataFrame([ohlc])
         else:
             new = pd.DataFrame([ohlc])
-            self.logger.info(f"the new low of ohlc data - {new.iloc[-1]}")
             old = self.data
             temp_data = pd.concat([old,new])
-            self.logger.info(f"after combining old + new shape of temp_df - {temp_data.shape}")
+            
         for required_indicator , indicator_information in self.indicators.items():
             indicator_type = list(indicator_information.keys())[0]
             temp_indicator = self.calculator.calculate(indicator_type,temp_data[['open','close','high','low','volume']].astype(float),indicator_information[indicator_type],self.logger)
             temp_data[required_indicator] = temp_indicator
-            self.logger.info(f"for {required_indicator} we got {temp_indicator}")
 
         if temp_data.shape[1] != 6+ len(self.indicators):
             raise ValueError("The indicators were not caluclated properly")
         
         self.data = temp_data
-        self.logger.info(f"The OHLC data has been updated new shape of data - {self.data.shape}")
-        if self.data.shape[0] == 1:
-            self.logger.info(f"{self.data.iloc[0]}")
-        
+        # self.logger.info(f"📊 OHLC received {ohlc}| Indicators calculated ⚙️ | Data shape: {self.data.shape}")
+        self.logger.info(f"📊 OHLC received {ohlc}")
+            
         return dict(self.data.iloc[-1])
     
     def update_price(self,price_data):
         self.latest_price = price_data
-        self.logger.info(f"The latest price has been updated to {self.latest_price}")
         return self.latest_price
         
     def next(self,data,purpose):
         if purpose == 'Enter':
-            result = self.stratergist.enter_condition(data)
+            result = self.stratergist.enter_condition(self.stratergy,data,self.logger )
             return result
         elif purpose == 'Exit':
-            result = self.stratergist.exit_condition(data)
+            result = self.stratergist.exit_condition(self.stratergy,data,self.logger)
             return result
 
     def enter(self,direction):
         stock_code = self.stock
         exchange_code = 'NSE'
-        product = 'margin'
+        product = 'cash'
         order_type = 'market'
         if direction == 1:
             action = 'buy'
         else:
             action = 'sell'
-        quantity = round(self.amount / self.latest_price)
+        quantity = math.floor(self.amount / self.latest_price['price'])
         validity = 'day'
 
-        order_completion_details = self.breeze.place_order(stock_code=stock_code,
-                    exchange_code=exchange_code,
-                    product=product,
-                    action=action,
-                    order_type=order_type,
-                    quantity=quantity,
-                    validity=validity
-                )        
-        order_id = order_completion_details['Success']['order_id']
+        if self.breeze:
+            order_completion_details = self.breeze.place_order(stock_code=stock_code,
+                        exchange_code=exchange_code,
+                        product=product,
+                        action=action,
+                        order_type=order_type,
+                        quantity=quantity,
+                        validity=validity
+                    )        
+            order_id = order_completion_details['Success']['order_id']
 
-        order_details= self.breeze.get_order_detail(exchange_code=exchange_code,order_id=order_id)
-        price = order_details['Success'][0]['average_price'] #take the avg of the 'price'
+            order_details= self.breeze.get_order_detail(exchange_code=exchange_code,order_id=order_id)
+            # self.logger.info(order_details)
+            price = float(order_details['Success'][0]['price']) #take the avg of the 'price'
+        else:
+            price = self.latest_price['price']
+            order_id = 'simulated_order'
 
         if action == 'buy':
-            stoploss = price * (1 - (self.stoploss_percent * 0.01))
-            target = price * (1 + (self.target_percent * 0.01))
+            stoploss = round(price * (1 - (self.stoploss_percent * 0.01)),2)
+            target = round(price * (1 + (self.target_percent * 0.01)),2)
         else:
-            stoploss = price * (1 + (self.stoploss_percent * 0.01))
-            target = price * (1 - (self.target_percent * 0.01))
+            stoploss = round(price * (1 + (self.stoploss_percent * 0.01)),2)
+            target = round(price * (1 - (self.target_percent * 0.01)),2)
 
         position_data = {
             'stock_code' : stock_code,
@@ -122,7 +117,7 @@ class Trader():
             'target':target
         }
 
-        print("When have entered the position")
+        self.logger.info(f"🟢🟢When have entered the position - {position_data}🟢🟢")
 
         return position_data
 
@@ -132,47 +127,48 @@ class Trader():
         else:
             action = 'buy'
         
-        order_completion_details = self.breeze.place_order(stock_code=self.position_info['stock_code'],
-                    exchange_code=self.position_info['exchange_code'],
-                    product=self.position_info['product'],
-                    action=action,
-                    order_type=self.position_info['order_type'],
-                    quantity=self.position_info['quantity'],
-                    validity=self.position_info['validity']
-                )  
-        
-        order_id = order_completion_details['Success']['order_id']
+        if self.breeze:
+            order_completion_details = self.breeze.place_order(stock_code=self.position_info['stock_code'],
+                        exchange_code=self.position_info['exchange_code'],
+                        product=self.position_info['product'],
+                        action=action,
+                        order_type=self.position_info['order_type'],
+                        quantity=self.position_info['quantity'],
+                        validity=self.position_info['validity']
+                    )  
+            
+            order_id = order_completion_details['Success']['order_id']
 
-        order_details= self.breeze.get_order_detail(exchange_code=self.position_info['exchange_code'],order_id=order_id)
-        price = order_details['Success'][0]['average_price']
+            order_details= self.breeze.get_order_detail(exchange_code=self.position_info['exchange_code'],order_id=order_id)
+            price = order_details['Success'][0]['average_price']
+        else:
+            price = self.latest_price['price']
 
         #add the logging over here
-        
-        print("We have exited the position")
+        self.logger.info(f"🔴🔴We have exited the position at price - {price}🔴🔴")
     
     def update_position(self):
         if self.position_info['action'] == 'buy':
-            if self.latest_price >= self.position_info['target']:
+            if self.latest_price['price'] >= self.position_info['target']:
                 self.position_info['stoploss'] = self.position_info['target']
-                self.position_info['target'] = self.position_info['target'] * (1.005)
+                self.position_info['target'] = round(self.position_info['target'] * (1.005),2)
+                self.logger.info(f"The target was met we have changed the stop loss to  - {self.position_info['stoploss']} and target - {self.position_info['target']} 🎯🎯")
         else:
-            if self.latest_price <= self.position_info['target']:
+            if self.latest_price['price'] <= self.position_info['target']:
                 self.position_info['stoploss'] = self.position_info['target']
-                self.position_info['target'] = self.position_info['target'] * (0.995)
-    
+                self.position_info['target'] = round(self.position_info['target'] * (0.995),2)
+                self.logger.info(f"The target was met we have changed the stop loss to  - {self.position_info['stoploss']} and target - {self.position_info['target']} 🎯🎯")
 
     def trade(self,data):
+        stop_trading_flag = 0
         if 'last' in data:
-            self.logger.info("We have recieved price tick data")
             data_purpose = 'Exit'
             price  = data['last']
             time = data['ltt']
             price_info = self.update_price({'time':time,'price':price})
         else:
-            self.logger.info("We have recieved OHLC data")
             data_purpose = 'Enter'
             ohlc_indicators = self.add_data(data)
-            print(f"The ohlc data has been updated")
 
 
         if data_purpose == 'Enter' and not self.trade_active:
@@ -180,16 +176,14 @@ class Trader():
                 data_to_send = []
                 for i in range(self.number_of_candles):
                     data_to_send.append(self.data.iloc[-(i+1)])
-                print(data_to_send)
                 res = self.next(data_to_send,data_purpose)
             else:
                 res = 0
             if res == 1 or res == -1:
-                self.trade_active = True
                 entry_data = self.enter(res)
-                # self.trade_active = True
+                self.trade_active = True
                 self.position_info = entry_data
-                print(entry_data)
+                # print(entry_data)
             
         elif data_purpose == 'Exit' and self.trade_active:
             self.update_position()
@@ -198,3 +192,15 @@ class Trader():
                 self.trade_active = False
                 self.exit()
                 self.position_info = None
+                self.number_of_trades = self.number_of_trades + 1
+
+            if self.number_of_trades >=1:
+                stop_trading_flag = 1
+
+        if stop_trading_flag:
+            self.logger.info("Trader has stopped 🔴💤")
+
+        return stop_trading_flag
+
+                
+                
