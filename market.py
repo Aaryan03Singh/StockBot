@@ -11,6 +11,7 @@ class Market():
 
     def __init__(self,information,simulation=False):
         
+        self.simulation = simulation
         keys = {
             'api_key':breeze_config.API_KEY,
             'api_secret':breeze_config.API_SECRET,
@@ -22,13 +23,15 @@ class Market():
                         session_token=keys['session_token'])
         
         self.logger = get_logger("MARKET")
-        self.logger.info("Breeze object has been generated and authenticated")
+        self.logger.info("🌬️ Breeze API client initialized and authenticated successfully 🔒✅")
         self.strategy_catalog = self.get_stocks_informarion(information)
-        self.simulation = simulation
+        for code,info in self.strategy_catalog.items():
+            self.logger.info(f"Strategy catalog for {code} : stratergies using the code - {len(info)}")
+        
         
     def get_stock_names(self,stock_code):
         '''
-         {'exchange_code': 'NSE',
+        {'exchange_code': 'NSE',
         'exchange_stock_code': 'RELIANCE',
         'isec_stock_code': 'RELIND',
         'isec_token': '2885',
@@ -72,7 +75,7 @@ class Market():
     def get_stocks_informarion(self,information):
         info = {}
         for trade_info in information:
-            temp_names = self.get_stock_names(trade_info['stock_code'])
+            temp_names = self.get_stock_names(trade_info['stock_name'])
             temp_information= {**temp_names,**trade_info}
             temp_information['is_active'] = False
             temp_information['trader'] = Trader(temp_information['stock_name'],temp_information['time_frame'],temp_information['stratergy'],temp_information['amount'])
@@ -100,12 +103,14 @@ class Market():
             self.breeze.subscribe_feeds(stock_token=stock_token, interval=time_frame)
         else:
             self.breeze.subscribe_feeds(stock_token=stock_token)
+        self.logger.info(f"The subscription has been made for {stock_token} at {time_frame if time_frame else 'price'}")
 
     def unsubscribe(self,stock_token,time_frame=None):
         if time_frame:
             self.breeze.unsubscribe_feeds(stock_token=stock_token, interval=time_frame)
         else:
             self.breeze.unsubscribe_feeds(stock_token=stock_token)
+        self.logger.info(f"The unsubscription has been made for {stock_token} at {time_frame if time_frame else 'price'}")
 
     def start(self):
         if self.simulation:
@@ -151,6 +156,7 @@ class Market():
                     if purpose == 'ohlc':
                         generator_dict[code] = simulator.simulation_generator(info,self.breeze)
                     subscription_dict[code] = 1
+                    self.logger.info(f"The simulation subscription has been made for {code}")
                 
                 info['is_active'] = True
         
@@ -159,30 +165,32 @@ class Market():
         return subscription_dict , generator_dict
 
     def stop(self):
-
-        for code,information in self.strategy_catalog.items():
-            if "_" in code:
-                purpose = 'ohlc'    
-            else:
-                purpose = 'price'
-            if self.subscription_dict[code] > 0:
-                token = None
-                interval = None
-                for trader in information:
-                    trader['is_active'] = False
-                    token = trader['isec_token_level1']
-                    interval = trader['time_frame']
-
-                if purpose == 'ohlc':
-                    self.unsubscribe(token,interval)
-                else:
-                    self.unsubscribe(token)
         
-        self.breeze.ws_disconnect()
+        if not self.simulation:
+            for code,information in self.strategy_catalog.items():
+                if "_" in code:
+                    purpose = 'ohlc'    
+                else:
+                    purpose = 'price'
+                if self.subscription_dict[code] > 0:
+                    token = None
+                    interval = None
+                    for trader in information:
+                        trader['is_active'] = False
+                        token = trader['isec_token_level1']
+                        interval = trader['time_frame']
+
+                    if purpose == 'ohlc':
+                        self.unsubscribe(token,interval)
+                    else:
+                        self.unsubscribe(token)
+            
+            self.breeze.ws_disconnect()
         
         self.logger.info("The unsubscriptions have been made for all the stocks")    
 
     def get_ticks_for_simulation(self):
+        stopping_flag = False
         approved_ticks = {}
         for code , generator in self.generator_dict.items():
             candidate = next(generator)
@@ -197,8 +205,16 @@ class Market():
             
             approved_ticks[code] = candidate
 
-        for code, ticks in approved_ticks.items():
-            self.on_ticks(ticks)
+        if len(candidate) == 0:
+            stopping_flag = True
+            print(self.generator_dict)
+        
+        if not stopping_flag:
+            for code, ticks in approved_ticks.items():
+                self.on_ticks(ticks)
+            
+        
+        return stopping_flag
 
 
 

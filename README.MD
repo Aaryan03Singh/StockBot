@@ -1,0 +1,1 @@
+To add a new stratergy in the stratergist class add another method with the name {YOUR NEW STRATEGY NAME}_strategy

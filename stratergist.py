@@ -80,3 +80,48 @@ class Stratergist():
                 else:
                     # logger.info("The stoploss has not been met")
                     return 0
+                
+
+    def adx40_stratergy(self,data,usecase,logger):
+        parameters = {
+           'adx':{'adx':{'length':7}},
+        }
+        #add the time 
+        stoploss_percentage = 0.3
+        target_percentage = 0.3
+        number_of_candles = 2
+        if usecase == 'init':
+            return parameters , stoploss_percentage , target_percentage, number_of_candles
+        
+        if usecase == 'enter':
+            # 0 is nothing 1 to buy -1 to sell 
+            # print(f"Data in the enter inside the strat - {data}")
+            adx = data[0]['adx']
+            # print(f"adx - {adx}  adx1 - {adx_2}")
+            if adx is None or np.isnan(adx):
+                logger.info(f"The adx right now is {adx} so not entering trade ⏳")
+                return 0
+            if adx > 10:
+                logger.info(f"The adx right now is {adx} so ENTERING the trade")
+                return 1
+            else:
+                logger.info(f"The adx right now is {adx} so not entering trade ⏳")
+                return 0
+
+            
+        if usecase == 'exit':
+            stoploss = data['stoploss']
+            if data['action'] == 'buy':
+                if data['price'] <= stoploss:
+                    logger.info(f"The stoploss {stoploss} has been met 🛡️🛡️")
+                    return 1
+                else:
+                    # logger.info("The stoploss has not been met")
+                    return 0
+            else:
+                if data['price'] >= stoploss:
+                    logger.info(f"The stoploss {stoploss} has been met 🛡️🛡️")
+                    return 1
+                else:
+                    # logger.info("The stoploss has not been met")
+                    return 0

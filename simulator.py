@@ -60,11 +60,11 @@ def get_data(isec_stock_code,breeze,interval):
 
 def simulation_generator(stock_information,breeze=None):
 
-    if  stock_information['stock'] == 'RELIANCE':
-        df = pd.read_excel('rel.xlsx')
-        df = df[pd.to_datetime(df['datetime']).dt.time >= pd.to_datetime("09:15").time()]
-    else:
-        df = get_data(stock_information['isec_stock_code'],breeze,stock_information['time_frame'])
+    # if  stock_information['stock'] == 'RELIANCE':
+    #     df = pd.read_excel('rel.xlsx')
+    #     df = df[pd.to_datetime(df['datetime']).dt.time >= pd.to_datetime("09:15").time()]
+    # else:
+    df = get_data(stock_information['isec_stock_code'],breeze,stock_information['time_frame'])
     stock_name = stock_information['company name']
 
     df = df.astype({'low':'float','high':'float','open':'float','close':'float','volume':'int'})
@@ -98,29 +98,29 @@ def simulation_generator(stock_information,breeze=None):
                 'stock_name': stock_name
             }
 
-info = {
-    'stock': 'RELIANCE',
-    'time_frame': '5minute',
-    'company name': 'RELIANCE INDUSTRIES',
-    'isec_stock_code': 'RELIND',
-    'stock_code': 'RELIANCE'
-}
-from breeze_connect import BreezeConnect
-import breeze_config
-keys = {
-    'api_key':breeze_config.API_KEY,
-    'api_secret':breeze_config.API_SECRET,
-    'session_token':breeze_config.SESSION_TOKEN
-}
-#directly take keys from breeze_config 
-breeze = BreezeConnect(api_key=keys['api_key'])
-breeze.generate_session(api_secret=keys['api_secret'],
-                session_token=keys['session_token'])
+# info = {
+#     'stock': 'RELIANCE',
+#     'time_frame': '5minute',
+#     'company name': 'RELIANCE INDUSTRIES',
+#     'isec_stock_code': 'RELIND',
+#     'stock_code': 'RELIANCE'
+# }
+# from breeze_connect import BreezeConnect
+# import breeze_config
+# keys = {
+#     'api_key':breeze_config.API_KEY,
+#     'api_secret':breeze_config.API_SECRET,
+#     'session_token':breeze_config.SESSION_TOKEN
+# }
+# #directly take keys from breeze_config 
+# breeze = BreezeConnect(api_key=keys['api_key'])
+# breeze.generate_session(api_secret=keys['api_secret'],
+#                 session_token=keys['session_token'])
 
-gen = simulation_generator(info,breeze)
+# gen = simulation_generator(info,breeze)
 
 
-for i in range(320):
-    tick = next(gen)
-    print(tick)
+# for i in range(320):
+#     tick = next(gen)
+#     print(tick)
     
