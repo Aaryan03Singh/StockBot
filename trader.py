@@ -3,6 +3,8 @@ from stratergist import Stratergist
 import pandas as pd
 import math
 import logger
+import utils
+from datetime import time as tt , date
 
 class Trader():
 
@@ -18,10 +20,12 @@ class Trader():
         self.indicators , self.stoploss_percent , self.target_percent , self.number_of_candles= self.stratergist.initialize(stratergy,self.logger)
         self.trade_active = False
         self.latest_price = None
+        self.price_data = None
         self.position_info = None
         self.amount = amount
         self.breeze = None
         self.number_of_trades = 0
+        self.trading_done = False
         self.logger.info(f"Trader has started 🟢🚀")
     
     def initialize_breeze_object(self,breeze):
@@ -33,6 +37,7 @@ class Trader():
     
     def add_data(self,ohlc):
         ohlc = {k:v for k,v in ohlc.items() if k in ['open','high','low','close','volume','datetime']}
+        ohlc['is_active'] = self.trade_active
         if self.data is None:
             temp_data = pd.DataFrame([ohlc])
         else:
@@ -45,7 +50,7 @@ class Trader():
             temp_indicator = self.calculator.calculate(indicator_type,temp_data[['open','close','high','low','volume']].astype(float),indicator_information[indicator_type],self.logger)
             temp_data[required_indicator] = temp_indicator
 
-        if temp_data.shape[1] != 6+ len(self.indicators):
+        if temp_data.shape[1] != 7+ len(self.indicators):
             raise ValueError("The indicators were not caluclated properly")
         
         self.data = temp_data
@@ -55,7 +60,19 @@ class Trader():
         return dict(self.data.iloc[-1])
     
     def update_price(self,price_data):
-        self.latest_price = price_data
+        price_data['is_active'] = self.trade_active
+        if self.price_data is None:
+            temp_price_data = pd.DataFrame([price_data])
+        else:
+            new = pd.DataFrame([price_data])
+            old = self.price_data
+            temp_price_data = pd.concat([old,new])
+
+        self.price_data = temp_price_data        
+        self.latest_price = {
+            'time': price_data['time'],
+            'price': float(price_data['price'])
+        }
         return self.latest_price
         
     def next(self,data,purpose):
@@ -160,7 +177,6 @@ class Trader():
                 self.logger.info(f"The target was met we have changed the stop loss to  - {self.position_info['stoploss']} and target - {self.position_info['target']} 🎯🎯")
 
     def trade(self,data):
-        stop_trading_flag = 0
         if 'last' in data:
             data_purpose = 'Exit'
             price  = data['last']
@@ -170,37 +186,52 @@ class Trader():
             data_purpose = 'Enter'
             ohlc_indicators = self.add_data(data)
 
+        if not self.trading_done:
+            if data_purpose == 'Enter' and not self.trade_active and utils.str_to_datetime_standard(ohlc_indicators['datetime']).time() <= tt(15, 14):
+                if self.data.shape[0] >= self.number_of_candles:
+                    data_to_send = []
+                    for i in range(self.number_of_candles):
+                        data_to_send.append(self.data.iloc[-(i+1)])
+                    res = self.next(data_to_send,data_purpose)
+                else:
+                    res = 0
+                if res == 1 or res == -1:
+                    entry_data = self.enter(res)
+                    self.trade_active = True
+                    self.position_info = entry_data
+                    # print(entry_data)
+                
+            elif data_purpose == 'Exit' and self.trade_active:
+                self.update_position()
+                res = self.next({**price_info,**self.position_info},data_purpose)
+                if res == 1:
+                    self.trade_active = False
+                    self.exit()
+                    self.position_info = None
+                    self.number_of_trades = self.number_of_trades + 1
+                else:
+                    datetime_obj = utils.ltt_str_to_datetime(price_info['time']) 
 
-        if data_purpose == 'Enter' and not self.trade_active:
-            if self.data.shape[0] >= self.number_of_candles:
-                data_to_send = []
-                for i in range(self.number_of_candles):
-                    data_to_send.append(self.data.iloc[-(i+1)])
-                res = self.next(data_to_send,data_purpose)
-            else:
-                res = 0
-            if res == 1 or res == -1:
-                entry_data = self.enter(res)
-                self.trade_active = True
-                self.position_info = entry_data
-                # print(entry_data)
-            
-        elif data_purpose == 'Exit' and self.trade_active:
-            self.update_position()
-            res = self.next({**price_info,**self.position_info},data_purpose)
-            if res == 1:
-                self.trade_active = False
-                self.exit()
-                self.position_info = None
-                self.number_of_trades = self.number_of_trades + 1
+                    cutoff = tt(15, 15) # 3:15 PM  (24-hour format)
+
+                    if datetime_obj.time() >= cutoff:
+                        self.trade_active = False
+                        self.exit()
+                        self.position_info = None
+                        self.number_of_trades = self.number_of_trades + 1
+
 
             if self.number_of_trades >=1:
-                stop_trading_flag = 1
+                self.trading_done = True
 
-        if stop_trading_flag:
-            self.logger.info("Trader has stopped 🔴💤")
 
-        return stop_trading_flag
+        #Saving the data when trading time for day is over 
+        if data_purpose == 'Enter': 
+            if utils.str_to_datetime_standard(ohlc_indicators['datetime']).time() >= tt(15, 15):
+                self.data.to_csv(f"trading_diary/{str(date.today())}/data/{self.stock}_{self.time_frame}_{self.stratergy}_ohlc.csv",index=False)
+        else:
+            if utils.ltt_str_to_datetime(price_info['time']).time() >= tt(15, 15):
+                self.price_data.to_csv(f"trading_diary/{str(date.today())}/data/{self.stock}_{self.time_frame}_{self.stratergy}_price.csv",index=False)
 
                 
                 

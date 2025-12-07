@@ -1,12 +1,6 @@
 import market as MK
 import time
 
-information = {
-    'stock': 'RELIANCE',
-    'time_frame': '1minute',
-    'company name': 'RELIANCE INDUSTRIES'
-    }
-
 
 def start_the_trading(simulation,information):
     try:
@@ -33,7 +27,6 @@ SIMULATION = True
 information = [
     {'stock_name':'IDEA','time_frame':'1minute','stratergy':'adx25','amount':1000},
     {'stock_name':'PCJEWELLER','time_frame':'1minute','stratergy':'adx25','amount':1000},
-    {'stock_name':'PCJEWELLER','time_frame':'5minute','stratergy':'adx25','amount':1000},
     {'stock_name':'IDEA','time_frame':'1minute','stratergy':'adx40','amount':1000},
 ]
 

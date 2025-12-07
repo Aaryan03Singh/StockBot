@@ -87,8 +87,8 @@ class Stratergist():
            'adx':{'adx':{'length':7}},
         }
         #add the time 
-        stoploss_percentage = 0.3
-        target_percentage = 0.3
+        stoploss_percentage = 5
+        target_percentage = 5
         number_of_candles = 2
         if usecase == 'init':
             return parameters , stoploss_percentage , target_percentage, number_of_candles

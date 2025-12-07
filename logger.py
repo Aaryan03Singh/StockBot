@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 def get_logger(name):
 
@@ -6,7 +7,7 @@ def get_logger(name):
     logger.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(f"logs\\{name}.txt", encoding="utf-8")
+    file_handler = logging.FileHandler(f"trading_diary/{str(date.today())}/logs/{name}.txt", encoding="utf-8")
 
     console_handler.setLevel(logging.DEBUG)
     file_handler.setLevel(logging.DEBUG)

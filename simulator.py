@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import utils
 
 def _dirichlet_increments(total_change, k, rng, alpha=1.0):
     if k <= 0:
@@ -67,10 +68,10 @@ def simulation_generator(stock_information,breeze=None):
     df = get_data(stock_information['isec_stock_code'],breeze,stock_information['time_frame'])
     stock_name = stock_information['company name']
 
-    df = df.astype({'low':'float','high':'float','open':'float','close':'float','volume':'int'})
+    # df = df.astype({'low':'float','high':'float','open':'float','close':'float','volume':'int'})
     for _,row in df.iterrows():
         temp_ohlc_tick = {
-                        'interval': '1minute',
+                        'interval': stock_information['time_frame'],
                         'exchange_code': row['exchange_code'], 
                         'stock_code': row['stock_code'], 
                         'low': row['low'], 
@@ -89,13 +90,33 @@ def simulation_generator(stock_information,breeze=None):
             "60minute": 3599   # 60*60 - 1
         }
 
-        temp_prices_data = simulate_path(temp_ohlc_tick['open'], low=temp_ohlc_tick['low'], high=temp_ohlc_tick['high'], end=temp_ohlc_tick['close'],n_steps=timeframe_steps[stock_information['time_frame']])
+        temp_prices_data = simulate_path(float(temp_ohlc_tick['open']),low=float(temp_ohlc_tick['low']), high=float(temp_ohlc_tick['high']), end=float(temp_ohlc_tick['close']),n_steps=timeframe_steps[stock_information['time_frame']])
 
         for price in temp_prices_data:
-            yield {
-                'last': price,
-                'ltt': temp_ohlc_tick['datetime'],
-                'stock_name': stock_name
+            yield {'symbol': '', #i sec token of the stock
+            'open': '', #Opening price of the day
+            'last': str(price), #Last traded price 
+            'high': '', #Highest price of the day
+            'low': '', #Lowest price of the day
+            'change': '', #Change in percent from yesterdays close
+            'bPrice': '', #Highest buy price bid
+            'bQty': '', #Quantity of highest bid price 
+            'sPrice': '', #Lowest Sell price 
+            'sQty': '', #Quantity of lowest sell price
+            'ltq': '', #Last traded quantity
+            'avgPrice': '', #Average price of the day
+            'quotes': '',
+            'ttq': '', #Total quantity of the day (Volume)
+            'totalBuyQt': '', #Buy Quantity 
+            'totalSellQ': '', #Sell Quantity
+            'ttv': '', #Total value traded in crores
+            'trend': '', #Direction of the stock from open
+            'lowerCktLm': '', #Lower Circuit amount 
+            'upperCktLm': '', #Upper circuit amount
+            'ltt': str(utils.datetime_to_ltt(utils.str_to_datetime_standard(temp_ohlc_tick['datetime']))),
+            'close': '', #Yesterdays close price
+            'exchange': 'NSE Equity',
+            'stock_name': stock_name
             }
 
 # info = {

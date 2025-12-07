@@ -5,12 +5,20 @@ import breeze_config
 import time
 import pandas as pd
 import simulator
+import utils
+from datetime import time,date
+import os
 
 
 class Market():
 
     def __init__(self,information,simulation=False):
-        
+
+        # Make directory for logging and data
+        os.makedirs(f"trading_diary/{str(date.today())}", exist_ok=True)
+        os.makedirs(f"trading_diary/{str(date.today())}/logs", exist_ok=True)
+        os.makedirs(f"trading_diary/{str(date.today())}/data", exist_ok=True)
+
         self.simulation = simulation
         keys = {
             'api_key':breeze_config.API_KEY,
@@ -27,8 +35,7 @@ class Market():
         self.strategy_catalog = self.get_stocks_informarion(information)
         for code,info in self.strategy_catalog.items():
             self.logger.info(f"Strategy catalog for {code} : stratergies using the code - {len(info)}")
-        
-        
+           
     def get_stock_names(self,stock_code):
         '''
         {'exchange_code': 'NSE',
@@ -42,6 +49,36 @@ class Market():
         stock_names = self.breeze.get_names('NSE',stock_code)
         return stock_names
     
+    # def on_ticks(self,ticks):
+    #     if 'last' in ticks:
+    #         code = ticks['stock_name']
+    #         purpose = 'price'
+    #     else:
+    #         code = f'{ticks['stock_code']}_{ticks['interval']}'
+    #         purpose = 'ohlc'
+        
+    #     token = None
+    #     interval = None
+    #     stop_flag = 0
+    #     for info in self.strategy_catalog[code]:
+    #         token = info['isec_token_level1']
+    #         interval = info['time_frame']
+    #         if info['is_active']:
+    #             flag = info['trader'].trade(ticks)
+    #             stop_flag = stop_flag + flag
+    #             if flag == 1:
+    #                 info['is_active'] = False
+       
+    #     if stop_flag > 0:
+    #         self.subscription_dict[code] = self.subscription_dict[code] - stop_flag
+    #         if self.subscription_dict[code] == 0:
+    #             if not self.simulation:
+    #                 if purpose == 'ohlc':
+    #                     self.unsubscribe(token,interval)
+    #                 else:
+    #                     self.unsubscribe(token)
+    #             self.logger.info(f"The unsubscription has been made for {code} as no active traders are present")
+
     def on_ticks(self,ticks):
         if 'last' in ticks:
             code = ticks['stock_name']
@@ -52,18 +89,25 @@ class Market():
         
         token = None
         interval = None
-        stop_flag = 0
+        stop_flag = False
         for info in self.strategy_catalog[code]:
             token = info['isec_token_level1']
             interval = info['time_frame']
             if info['is_active']:
-                flag = info['trader'].trade(ticks)
-                stop_flag = stop_flag + flag
-                if flag == 1:
-                    info['is_active'] = False
-       
-        if stop_flag > 0:
-            self.subscription_dict[code] = self.subscription_dict[code] - stop_flag
+                info['trader'].trade(ticks)
+                
+        if purpose == 'ohlc':
+            datetime_obj = utils.str_to_datetime_standard(ticks['datetime'])
+        else:
+            datetime_obj = utils.ltt_str_to_datetime(ticks['ltt'])
+
+        cutoff = time(15, 15) # 3:15 PM  (24-hour format)
+
+        if datetime_obj.time() >= cutoff:
+            stop_flag = True
+
+        if stop_flag:
+            self.subscription_dict[code] = self.subscription_dict[code] * 0
             if self.subscription_dict[code] == 0:
                 if not self.simulation:
                     if purpose == 'ohlc':
@@ -71,7 +115,7 @@ class Market():
                     else:
                         self.unsubscribe(token)
                 self.logger.info(f"The unsubscription has been made for {code} as no active traders are present")
-  
+
     def get_stocks_informarion(self,information):
         info = {}
         for trade_info in information:
@@ -84,6 +128,8 @@ class Market():
                 temp_information['trader'].initialize_breeze_object(None)
             else:
                 temp_information['trader'].initialize_breeze_object(self.breeze)
+
+            #add the initialize data with (number of days and timeframe)
             
             ohlc_tick_flag = f'{temp_information['isec_stock_code']}_{temp_information['time_frame']}'
             price_tick_flag = f'{temp_information['company name']}'
@@ -205,9 +251,12 @@ class Market():
             
             approved_ticks[code] = candidate
 
-        if len(candidate) == 0:
+        # if len(candidate) == 0:  #why are we looking at len of candidate?
+        if len(approved_ticks) == 0:
             stopping_flag = True
-            print(self.generator_dict)
+            # print(self.generator_dict)
+
+        # print(approved_ticks)
         
         if not stopping_flag:
             for code, ticks in approved_ticks.items():
